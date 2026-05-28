@@ -49,18 +49,12 @@ def _init_oled():
     try:
         import drivers.sh1106 as _sh1106
     except ImportError:
-        try:
-            import sh1106 as _sh1106
-        except ImportError:
-            pass
-    # Load SSD1306 driver (fallback)
+        pass
+        # Load SSD1306 driver (fallback)
     try:
         import drivers.ssd1306 as _ssd1306
     except ImportError:
-        try:
-            import ssd1306 as _ssd1306
-        except ImportError:
-            pass
+        pass
 
     if _ssd1306 is None and _sh1106 is None:
         print("[hw] CRITIQUE: aucun driver OLED disponible")
@@ -81,6 +75,9 @@ def _init_oled():
                 H = height; _oled_type = name
                 store.put("sys", "oled", name)
                 print("[hw] OLED:", name, W, "x", H)
+                if store.get("sys", "pwr_mode", "bat") == "bat":
+                    try: oled.contrast(10)
+                    except: pass
                 return
             except Exception as e:
                 print("[hw] OLED", name, height, ":", e)
@@ -98,6 +95,15 @@ _lb = Pin(C.PIN_LB, Pin.OUT, value=1)
 
 def led(r=0, g=0, b=0):
     """Active les canaux R/G/B (True = allumé)."""
+    if on_battery():
+        # Limit current draw on battery: allow only one LED channel to be active.
+        # Prioritize: Green > Blue > Red
+        if r and g and b:
+            r, g, b = 0, 1, 0
+        elif (r and g) or (r and b) or (g and b):
+            if g: r, g, b = 0, 1, 0
+            elif b: r, g, b = 0, 0, 1
+            else: r, g, b = 1, 0, 0
     _lr.value(0 if r else 1)
     _lg.value(0 if g else 1)
     _lb.value(0 if b else 1)
@@ -123,7 +129,11 @@ _bz = PWM(Pin(C.PIN_BZ), freq=440, duty=0)
 
 def _vol():
     v = store.get("sound", "volume", 2)
-    return {1: 80, 2: 350, 3: 750}.get(v, 350)
+    vol = {1: 80, 2: 350, 3: 750}.get(v, 350)
+    if on_battery():
+        # Limit buzzer current spike on battery
+        return min(vol, 220)
+    return vol
 
 def tone(freq, ms):
     """
@@ -224,6 +234,8 @@ def cx(text, offset=0):
     return offset + max(0, (W - offset - len(str(text)) * 8) // 2)
 
 def set_contrast(level):
+    if on_battery():
+        level = min(level, 15) # Safe low contrast for battery
     try: oled.contrast(level)
     except: pass
 

@@ -60,6 +60,7 @@ SYS_FILES = frozenset({
 ATELIERS = [
     ("Le Morse",     "morse",    "morse",          "morse"),
     ("Code Cesar",   "key",      "cesar",          "cesar"),
+    ("Le Simon",     "bolt",     "simon",          "simon"),
     ("Le Cadenas",   "padlock",  "crochetage",     "crochetage"),
     ("Le Radar",     "signal",   "radio_dist",     "radio_dist"),
     ("Reglages",     "anchor",   "reglages",       None),

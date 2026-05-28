@@ -65,6 +65,8 @@ def ap_status():
 def sta_connect(ssid, pwd="", timeout_ms=10000):
     sta = network.WLAN(network.STA_IF)
     sta.active(True)
+    try: sta.config(txpower=8)
+    except: pass
     if sta.isconnected(): sta.disconnect()
     sta.connect(ssid, pwd) if pwd else sta.connect(ssid)
     t0 = time.ticks_ms()
@@ -81,6 +83,8 @@ def sta_disconnect():
 def sta_scan():
     sta = network.WLAN(network.STA_IF)
     sta.active(True)
+    try: sta.config(txpower=8)
+    except: pass
     try:
         nets = sta.scan()
         nets.sort(key=lambda x: -x[3])

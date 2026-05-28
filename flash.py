@@ -62,6 +62,7 @@ REQUIRED = [
     "apps/__init__.py",
     "apps/morse.py",
     "apps/cesar.py",
+    "apps/simon.py",
     "apps/crochetage.py",
     "apps/radio_dist.py",
     "apps/reglages.py",
@@ -69,9 +70,7 @@ REQUIRED = [
 
 # Fichiers OPTIONNELS -- uploades s'ils existent, ignores sinon
 OPTIONAL = [
-    "dashboard.html",
     "blockly_fr.js",
-    "apps/simon.py",
     "apps/accel_bruit.py",
     "apps/hack_portail.py",
     "apps/scratch_blocs.py",
@@ -229,19 +228,21 @@ def flash_firmware(port, bin_path):
     base = cmd + ["--chip", "esp32c3", "--port", port]
 
     print(INFO("  Effacement de la flash..."))
-    r = subprocess.run(base + ["erase_flash"],
+    r = subprocess.run(base + ["erase-flash"],
                        capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         out = (r.stdout + r.stderr).strip()
         print(ERR("  [ERR] Effacement echoue"))
         if out:
             print(ERR("        " + out[:200]))
+        print(WARN("  [!]  Si le port est occupe : ferme Chrome/Edge et tout"))
+        print(WARN("       outil serie ouvert (PuTTY, Arduino IDE, etc.)"))
         return False
     print(OK("  [OK]  Flash effacee"))
 
     print(INFO("  Ecriture du firmware (peut prendre 30-60s)..."))
     r = subprocess.run(base + ["--baud", "460800",
-                                "write_flash", "-z", "0x0", bin_path],
+                                "write-flash", "-z", "0x0", bin_path],
                        capture_output=True, text=True, timeout=120)
     if r.returncode != 0:
         out = (r.stdout + r.stderr).strip()
@@ -391,6 +392,62 @@ def detect_port():
 
 
 # =============================================================================
+# Rétroaction physique sur le badge (LED / Son / OLED)
+# =============================================================================
+
+def show_flashing_status_on_device(port):
+    script = (
+        "try:\n"
+        "    from core import hw, ui\n"
+        "    hw.oled.fill(0)\n"
+        "    ui.header('MAJ SYSTEME')\n"
+        "    hw.oled.text('CONNEXION PC...', 8, 22, 1)\n"
+        "    hw.oled.text('TELEVERSEMENT...', 4, 34, 1)\n"
+        "    ui.footer('Patienter')\n"
+        "    hw.oled_show()\n"
+        "except: pass\n"
+    )
+    mp_port(port, "exec", script, timeout=10)
+
+
+def show_flash_progress_on_device(port, current, total):
+    pct = int(current * 100 / total) if total > 0 else 0
+    bars = pct // 10
+    bar_str = "[" + "#" * bars + "." * (10 - bars) + "]"
+    script = (
+        "try:\n"
+        "    from core import hw, ui\n"
+        "    hw.oled.fill(0)\n"
+        "    ui.header('TELEVERSEMENT')\n"
+        f"    hw.oled.text('PROGRES: {pct}%', 16, 22, 1)\n"
+        f"    hw.oled.text('{current}/{total} FICHIERS', 12, 34, 1)\n"
+        f"    ui.footer('{bar_str}')\n"
+        "    hw.oled_show()\n"
+        "except: pass\n"
+    )
+    mp_port(port, "exec", script, timeout=10)
+
+
+def show_flash_complete_on_device(port):
+    script = (
+        "try:\n"
+        "    from core import hw, ui\n"
+        "    hw.oled.fill(0)\n"
+        "    ui.header('MAJ COMPLETE')\n"
+        "    hw.led_green()\n"
+        "    hw.oled.text('SUCCES !', 36, 20, 1)\n"
+        "    hw.oled.text('MAJ TERMINEE !', 12, 32, 1)\n"
+        "    ui.footer('Reboot / RST')\n"
+        "    hw.oled_show()\n"
+        "    import config as C\n"
+        "    hw.melody(C.SND_WIN)\n"
+        "    hw.led_off()\n"
+        "except: pass\n"
+    )
+    mp_port(port, "exec", script, timeout=10)
+
+
+# =============================================================================
 # Etape 3 : Nettoyage + creation de dossiers
 # =============================================================================
 
@@ -413,6 +470,8 @@ def prepare_card(port, dry_run=False):
     for d in REMOTE_DIRS:
         mp_port(port, "mkdir", ":" + d, timeout=8)
     print(OK("  [OK]  Dossiers : " + ", ".join(REMOTE_DIRS)))
+
+    show_flashing_status_on_device(port)
 
 
 # =============================================================================
@@ -443,6 +502,12 @@ def _do_upload_usb(port, to_upload, dry_run=False):
     n = len(to_upload)
     failed = []
 
+    if not dry_run:
+        show_flash_progress_on_device(port, 0, n)
+
+    checkpoints = [1, int(n * 0.25), int(n * 0.50), int(n * 0.75), n]
+    checkpoints = sorted(list(set(c for c in checkpoints if c >= 1)))
+
     for i, (rel, path, required) in enumerate(to_upload, 1):
         size = os.path.getsize(path)
         pct  = int((i - 1) / n * 30)
@@ -457,6 +522,8 @@ def _do_upload_usb(port, to_upload, dry_run=False):
         ok, out = mp_port(port, "cp", path, ":" + rel, timeout=20)
         if ok:
             print(OK("  [->]  ") + ("%-42s" % rel) + DIM("  " + str(size) + " o"))
+            if not dry_run and i in checkpoints:
+                show_flash_progress_on_device(port, i, n)
         else:
             print(ERR("  [ERR] " + rel))
             if out.strip():
@@ -683,7 +750,7 @@ def verify(port):
     print(BOLD("\n[4/5] Verification sur la carte"))
     key = ["config.py", "main.py", "boot.py",
            "core/hw.py", "core/ui.py", "core/game_manager.py",
-           "drivers/sh1106.py", "apps/morse.py"]
+           "drivers/sh1106.py", "apps/morse.py", "apps/simon.py"]
     script = (
         "import os\n"
         "ok,miss=[],[]\n"
@@ -862,6 +929,7 @@ exemples :
     # -- Etape 5 : verification -------------------------------------------------
     if not args.dry_run:
         verify(port)
+        show_flash_complete_on_device(port)
 
     # -- Reset optionnel --------------------------------------------------------
     if args.reset and not args.dry_run:

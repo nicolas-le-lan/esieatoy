@@ -14,26 +14,19 @@ import time
 CID    = "morse"
 TARGET = "LYS"
 
-DOT  = 120; DASH = 320; GAP = 70; LETTER_GAP = 240
+DOT  = 240; DASH = 600; GAP = 150; LETTER_GAP = 450
 
 CODE = {
     "L": ".-..",
     "Y": "-.--",
     "S": "...",
-    "A": ".-",
-    "E": ".",
-    "H": "....",
-    "R": ".-.",
-    "T": "-",
-    "I": "..",
-    "N": "-.",
 }
 
 _INTRO = [
     "La tablette\nemet une suite\nde sons courts\net longs.",
     "C est du CODE\nMORSE !\nCourt = point (.)\nLong  = tiret (-)",
     "Chaque lettre\ncorrespond a une\nsequence unique.\nTrouve le mot !",
-    "B = reecouter\nA = saisir\nta reponse",
+    "Directions = reecouter\nB = quitter\nA = saisir\nta reponse",
 ]
 
 
@@ -56,7 +49,7 @@ def _draw_idle(tick):
         if ((tick + i * 3) % 8) < 4:
             hw.oled.ellipse(cx, cy + 12, r, r, 1)
     hw.oled.text("Signal capte !", hw.cx("Signal capte !"), cy + 29, 1)
-    ui.footer("Repeter", "Saisir")
+    ui.footer("Quitter", "Saisir")
     hw.oled_show()
 
 
@@ -93,7 +86,10 @@ def run():
         b = hw.wait_btn(180)
         tick = (tick + 1) % 32
 
-        if b in ("b", "lt", "dn", "rt", "up"):
+        if b == "b":
+            hw.led_off()
+            return
+        elif b in ("lt", "dn", "rt", "up"):
             for t in range(10):
                 _draw_emitting(t * 2)
                 time.sleep_ms(30)
@@ -116,7 +112,7 @@ def run():
                     "Mais cela n\nexplique pas leur\norigine !",
                 ])
                 hw.led_off()
-                ui.victory("RADIO OK", "Morse decode !", "Atelier 1/4")
+                ui.victory("RADIO OK", "Morse decode !", "Atelier 1/5")
                 return
             else:
                 hw.melody(C.SND_ERR)

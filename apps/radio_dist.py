@@ -53,6 +53,8 @@ def _en_init():
         sta = network.WLAN(network.STA_IF)
         _en_sta_was = sta.active()
         sta.active(True)
+        try: sta.config(txpower=8)
+        except: pass
         e = espnow.ESPNow()
         e.active(True)
         try:
@@ -136,6 +138,8 @@ def _wifi_scan():
         import network
         sta = network.WLAN(network.STA_IF)
         sta.active(True)
+        try: sta.config(txpower=8)
+        except: pass
         best = None
         for n in sta.scan():
             try:
@@ -172,7 +176,7 @@ def _rssi_zone(rssi):
 
 def _draw_rssi(rssi, hold_ms, mode_lbl):
     hw.oled.fill(0)
-    ui.header("RADAR", mode_lbl)
+    ui.header("RADAR", "%ddB" % rssi)
     cy = ui.CTY() + 2
 
     pct = max(0, min(100, int((rssi + 90) * 100 / 60)))
@@ -185,20 +189,19 @@ def _draw_rssi(rssi, hold_ms, mode_lbl):
 
     zone = _rssi_zone(rssi)
     if zone == "ok":
-        hw.led_green();  status = "BONNE ZONE!"
+        status = "BONNE ZONE!"
     elif zone == "close":
-        hw.led_red();    status = "TROP PRES"
+        status = "TROP PRES"
     else:
-        hw.led_blue();   status = "TROP LOIN"
+        status = "TROP LOIN"
 
-    hw.oled.text("%d dBm" % rssi, 2, cy + 11, 1)
-    hw.oled.text(status, hw.cx(status), cy + 11, 1)
+    hw.oled.text(status, hw.cx(status), cy + 10, 1)
 
     if zone == "ok":
-        ui.hbar(20, cy + 24, 88, 6, hold_ms, HOLD_MS)
-        hw.oled.text("Maintiens !", hw.cx("Maintiens !"), cy + 33, 1)
+        ui.hbar(20, cy + 20, 88, 5, hold_ms, HOLD_MS)
+        hw.oled.text("Maintiens !", hw.cx("Maintiens !"), cy + 27, 1)
     else:
-        hw.oled.text("Cherche la zone", hw.cx("Cherche la zone"), cy + 24, 1)
+        hw.oled.text("Cherche la zone", hw.cx("Cherche la zone"), cy + 22, 1)
 
     ui.footer("Annuler")
     hw.oled_show()
@@ -216,18 +219,18 @@ def _draw_accel(val, hold_ms):
 
     in_ok = ZONE_MIN <= val <= ZONE_MAX
     if in_ok:
-        hw.led_green();  status = "BONNE ZONE!"
+        status = "BONNE ZONE!"
     elif val < ZONE_MIN:
-        hw.led_blue();   status = "TROP LOIN"
+        status = "TROP LOIN"
     else:
-        hw.led_red();    status = "TROP PRES"
+        status = "TROP PRES"
 
-    hw.oled.text(status, hw.cx(status), cy + 11, 1)
+    hw.oled.text(status, hw.cx(status), cy + 10, 1)
     if in_ok:
-        ui.hbar(20, cy + 24, 88, 6, hold_ms, HOLD_MS)
-        hw.oled.text("Maintiens !", hw.cx("Maintiens !"), cy + 33, 1)
+        ui.hbar(20, cy + 20, 88, 5, hold_ms, HOLD_MS)
+        hw.oled.text("Maintiens !", hw.cx("Maintiens !"), cy + 27, 1)
     else:
-        hw.oled.text("Penche la tablette", hw.cx("Penche la tablette"), cy + 24, 1)
+        hw.oled.text("Penche le badge", hw.cx("Penche le badge"), cy + 22, 1)
 
     ui.footer("Annuler")
     hw.oled_show()
@@ -253,6 +256,7 @@ def run():
 
     hold_start = 0
     in_zone    = False
+    last_flash = 0
 
     try:
         while True:
@@ -267,9 +271,9 @@ def run():
                 # Pas encore de signal détecté — afficher écran d'attente
                 hw.oled.fill(0)
                 ui.header("RADAR", "EN" if use_en else "WIFI")
-                hw.oled.text("Recherche...", hw.cx("Recherche..."), ui.MID() - 4, 1)
-                hw.oled.text("Allume l autre", hw.cx("Allume l autre"), ui.MID() + 8, 1)
-                hw.oled.text("ESIEAtoy !", hw.cx("ESIEAtoy !"), ui.MID() + 18, 1)
+                hw.oled.text("Recherche...", hw.cx("Recherche..."), ui.MID() - 14, 1)
+                hw.oled.text("Allume l'autre", hw.cx("Allume l'autre"), ui.MID() - 4, 1)
+                hw.oled.text("ESIEAtoy !", hw.cx("ESIEAtoy !"), ui.MID() + 6, 1)
                 ui.footer("Annuler")
                 hw.oled_show()
                 b = hw.read_btn()
@@ -280,6 +284,37 @@ def run():
                 continue
 
             currently_ok = _rssi_zone(rssi) == "ok"
+            now = time.ticks_ms()
+
+            # ── Sonar dynamique "Chaud/Froid" ──────────────────────────────
+            if currently_ok:
+                hw.led_green()
+                # Bip doux périodique toutes les 250 ms dans la bonne zone
+                if time.ticks_diff(now, last_flash) >= 250:
+                    last_flash = now
+                    hw.tone(880, 20)
+            else:
+                # Calcul de proximité de 0.0 (froid) à 1.0 (chaud)
+                if rssi < RSSI_FAR:
+                    proximity = max(0.0, min(1.0, (rssi - (-90)) / 20.0))
+                else:
+                    proximity = max(0.0, min(1.0, ((-25) - rssi) / 20.0))
+
+                # intervalle de clignotement / bip sonar
+                interval = int(120 + (1.0 - proximity) * 680)
+
+                if time.ticks_diff(now, last_flash) >= interval:
+                    last_flash = now
+                    zone = _rssi_zone(rssi)
+                    if zone == "close":
+                        hw.led_red()
+                        hw.tone(1100, 16)
+                    else:
+                        hw.led_blue()
+                        hw.tone(580, 16)
+                    hw.led_off()
+                else:
+                    hw.led_off()
 
             # ── Timer de maintien ──────────────────────────────────────────────
             if currently_ok:
@@ -307,6 +342,7 @@ def run():
 
     finally:
         _en_cleanup()
+        hw.led_off()
 
     # ── Séquence de victoire ───────────────────────────────────────────────────
     hw.led_off()
@@ -324,4 +360,4 @@ def run():
         "Sous le plancher\ndu navire, une\nmachine pulse\nau meme rythme !",
         "Message de fin :\nESIEA TOY\nTablette educative\nFrance 2026.",
     ])
-    ui.victory("RADAR OK", "Zone trouvee !", "Atelier 4/4")
+    ui.victory("RADAR OK", "Zone trouvee !", "Atelier 5/5")

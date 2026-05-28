@@ -123,62 +123,64 @@ class GameManager:
 
     def _enter_boot(self):
         import machine
-        # ── Fréquence sécurisée immédiatement ────────────────────────────────
-        # Déjà réduite dans main.py, mais on le reconfirme ici par sécurité.
         machine.freq(80_000_000)
+        
+        # Force a safe low contrast during the entire initial loading phase
+        hw.set_contrast(10)
 
         mode   = store.get("sys", "pwr_mode", "bat")  # bat = défaut sécurisé
-        choice = None
 
-        # Pas de LED pendant l'animation — led_white() (3 LEDs = ~60 mA)
-        # provoque une chute de tension sur batterie qui corrompt l'I2C OLED.
-        for step in range(1, 23):
-            b = hw.read_btn()
-            if b == "b":   choice = "bat"
-            elif b == "a": choice = "usb"
+        # Phase 1: Simple & Fast Boot
+        hw.oled.fill(0)
+        hw.oled.text("ESIEATOY OS", hw.cx("ESIEATOY OS"), 28, 1)
+        hw.oled_show()
+        time.sleep_ms(200)
 
+        # Phase 2: Power Mode Selector Dialog (macOS Window style)
+        choice = mode
+        while True:
             hw.oled.fill(0)
-
-            # Logo tablette — apparaît dès le début
-            ui.draw_icon("esiea", 56, 4)
-
-            # Séparateur + titre (step 5+)
-            if step >= 5:
-                hw.oled.hline(12, 23, hw.W - 24, 1)
-                hw.oled.text("ESIEA TOY OS", hw.cx("ESIEA TOY OS"), 26, 1)
-
-            # Sous-titre + 2e séparateur (step 10+)
-            if step >= 10:
-                hw.oled.text("Caraibes,  1700", hw.cx("Caraibes,  1700"), 36, 1)
-                hw.oled.hline(12, 46, hw.W - 24, 1)
-
-            # Pastilles de mode ECO / USB (step 14+)
-            if step >= 14:
-                is_bat = (choice if choice else mode) == "bat"
-                if is_bat:
-                    hw.oled.fill_rect(14, 49, 40, 10, 1)
-                    hw.oled.text("ECO", 23, 50, 0)
-                    hw.oled.rect(74, 49, 40, 10, 1)
-                    hw.oled.text("USB", 83, 50, 1)
-                else:
-                    hw.oled.rect(14, 49, 40, 10, 1)
-                    hw.oled.text("ECO", 23, 50, 1)
-                    hw.oled.fill_rect(74, 49, 40, 10, 1)
-                    hw.oled.text("USB", 83, 50, 0)
-
-            # Barre de progression fine 2 px au bas de l'écran
-            hw.oled.fill_rect(0, 62, step * hw.W // 22, 2, 1)
-
+            
+            # Fenêtre macOS
+            ui.rrect(6, 12, 116, 42, 1)
+            hw.oled.fill_rect(7, 13, 114, 9, 1)
+            
+            # Points de contrôle macOS
+            hw.oled.pixel(10, 17, 0)
+            hw.oled.pixel(14, 17, 0)
+            hw.oled.pixel(18, 17, 0)
+            
+            hw.oled.text("PWR SELECT", 32, 14, 0)
+            hw.oled.text("MODE:", 12, 30, 1)
+            
+            # Boutons ECO et USB
+            if choice == "bat":
+                hw.oled.fill_rect(54, 28, 30, 11, 1)
+                hw.oled.text("ECO", 58, 30, 0)
+                ui.rrect(88, 28, 30, 11, 1)
+                hw.oled.text("USB", 92, 30, 1)
+            else:
+                ui.rrect(54, 28, 30, 11, 1)
+                hw.oled.text("ECO", 58, 30, 1)
+                hw.oled.fill_rect(88, 28, 30, 11, 1)
+                hw.oled.text("USB", 92, 30, 0)
+                
+            ui.footer("Retour", "Valider")
             hw.oled_show()
-            time.sleep_ms(45)
-
-        if choice is not None:
-            mode = choice
-            store.put("sys", "pwr_mode", mode)
-            store.save()
+            
+            b = hw.wait_btn(0)
+            if b in ("lt", "rt", "up", "dn"):
+                choice = "usb" if choice == "bat" else "bat"
+                hw.melody(C.SND_NAV)
+            elif b == "a":
+                mode = choice
+                store.put("sys", "pwr_mode", mode)
+                store.save()
+                break
+            elif b == "b":
+                break
 
         if mode == "bat":
-            # Déjà à 80 MHz — s'assurer que le WiFi est bien éteint
             hw.set_contrast(10)
             try:
                 import network
@@ -187,7 +189,6 @@ class GameManager:
             except:
                 pass
         else:
-            # Mode USB : monter en fréquence puis démarrer le réseau
             machine.freq(160_000_000)
             hw.set_contrast(255)
             try:
@@ -320,46 +321,55 @@ class GameManager:
         ox, oy         = self._ox, self._oy
 
         hw.oled.fill(0)
-        ui.header("ESIEA TOY", "%d/%d" % (done, n_ctf))
-
-        # Cartes latérales avec parallaxe réduit
-        for delta, sx in ((-1, 4), (1, 92)):
-            side_idx = (idx + delta) % n
-            _, side_icon, _, _ = C.ATELIERS[side_idx]
-            side_locked = not self._is_unlocked(side_idx)
-            ui.rrect(sx + ox // 2, 16 + oy // 2, 32, 20, 1)
-            if side_locked:
-                ui.draw_sprite("lock", sx + 12 + ox // 2, 20 + oy // 2)
-            else:
-                ui.draw_icon(side_icon, sx + 8 + ox // 2, 18 + oy // 2)
-
-        # Carte centrale double bordure
-        ui.rrect(43 + ox, 13 + oy, 42, 26, 1)
-        ui.rrect(44 + ox, 14 + oy, 40, 24, 1)
+        
+        # Flipper style Status Bar
+        ui.header("ESIEA TOY OS", "%d/%d" % (done, n_ctf))
+        
+        # Active floating window (macOS style frame) with parallax
+        wx, wy, ww, wh = 6 + ox, 14 + oy, 116, 32
+        ui.rrect(wx, wy, ww, wh, 1)
+        
+        # macOS Window details: divider line to separate icon and details
+        hw.oled.vline(wx + 26, wy + 1, wh - 2, 1)
+        
+        # Icon compartment (left)
+        ui.draw_icon(icon, wx + 5, wy + 8)
+        
+        # solved/locked badges overlaid on icon
         if locked:
-            ui.draw_sprite("lock", 60 + ox, 21 + oy)
+            ui.draw_sprite("lock", wx + 13, wy + 16)
+        elif solved:
+            ui.draw_sprite("check", wx + 13, wy + 16)
+            
+        # Details compartment (right)
+        lbl = _clean(label)
+        hw.oled.text(lbl[:10], wx + 32, wy + 6, 1)
+        
+        # status pill / badge
+        if locked:
+            hw.oled.text("VERROU", wx + 32, wy + 18, 1)
+            ui.draw_sprite("lock", wx + 88, wy + 18)
+        elif solved:
+            hw.oled.fill_rect(wx + 32, wy + 17, 72, 11, 1)
+            hw.oled.text("RESOLU !", wx + 36, wy + 19, 0)
         else:
-            ui.draw_icon(icon, 56 + ox, 17 + oy)
-
-        if solved:
-            hw.oled.fill_rect(75 + ox, 15 + oy, 8, 8, 1)
-            ui.draw_sprite("check", 75 + ox, 15 + oy, 0)
-
-        # Label avec scroll automatique
-        lbl  = _clean(label)
-        tok  = time.ticks_ms() // 200
-        disp = ui.scroll_label(lbl, 14, tok) if len(lbl) > 14 else lbl
-        hw.oled.text(disp, hw.cx(disp), 41, 1)
-
-        # Points de pagination
-        dot_w = n * 9
-        dot_x = (hw.W - dot_w) // 2
+            ui.rrect(wx + 32, wy + 17, 72, 11, 1)
+            hw.oled.text("JOUER [A]", wx + 36, wy + 19, 1)
+            
+        # macOS style Bottom Dock
+        hw.oled.hline(20, 50, 88, 1)
         for i in range(n):
-            px = dot_x + i * 9 + 3
+            px = 24 + i * 16
             if i == idx:
-                hw.oled.fill_rect(px - 1, 51, 3, 3, 1)
+                hw.oled.fill_rect(px - 1, 49, 3, 3, 1)
+                hw.oled.text("^", px - 4, 52, 1)
             else:
-                hw.oled.pixel(px, 52, 1)
+                _, _, _, side_cid = C.ATELIERS[i]
+                side_solved = bool(side_cid and store.get("ctf", side_cid, False))
+                if side_solved:
+                    hw.oled.fill_rect(px, 50, 2, 2, 1)
+                else:
+                    hw.oled.pixel(px, 50, 1)
 
         if locked:
             ui.footer("Progres", "Verr.")

@@ -173,4 +173,4 @@ def run():
         "RADAR - Maintenir\na 50 cm de\ndistance de son\nhomologue.",
         "Ce n'est pas un\njouet du passe.\nCes objets\nviennent du futur!",
     ])
-    ui.victory("CADENAS OK", "Coffre ouvert !", "Atelier 3/4")
+    ui.victory("CADENAS OK", "Coffre ouvert !", "Atelier 4/5")

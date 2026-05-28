@@ -84,6 +84,8 @@ def _screen_wifi():
     hw.oled_show()
 
     sta.active(True)
+    try: sta.config(txpower=8)
+    except: pass
     nets = []
     try:
         seen = set()
