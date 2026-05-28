@@ -21,8 +21,10 @@ _INTRO = [
     "Apres avoir bypass\nle verrou Simon,\nla tablette\naffiche un flux",
     "de donnees brutes\nen binaire !\nUne sorte de\ncle d'acces...",
     "Chaque octet de\n8 bits cache une\nlettre codee\nen ASCII !",
+    "Le mot recherche\nest le suffixe de\nla tablette :\n\n  ESIEAtoy !",
     "Chaque bit vaut\nune puissance de 2\n(128, 64, ..., 1).\nLe but est de",
     "reconstituer le\nmot secret de\n3 lettres !",
+    "En cas d'erreur,\ndes indices\ndetailles seront\ndisponibles !",
     "UP/DN = bit 0 / 1\nLT/RT = curseur\nA = valider lettre\nB = quitter",
 ]
 
@@ -64,6 +66,12 @@ def _draw(letter_idx, bits, cursor):
     # Curseur sous la boîte active
     cx = 10 + cursor * 14 + 1
     hw.oled.text("^", cx, by + 10, 1)
+
+    # Valeur du bit sous le curseur (POIDS) placé de manière réactive
+    weight = 1 << (7 - cursor)
+    w_str = "POIDS:%d" % weight
+    wx = 80 if cx < 64 else 4
+    hw.oled.text(w_str, wx, by + 10, 1)
 
     # Affichage dynamique décimal et caractère
     info_str = "DEC: %d  CHAR: %s" % (val, _char(val))
@@ -145,3 +153,29 @@ def run():
                 hw.melody(C.SND_ERR)
                 ui.message("ERREUR", "L'octet ne donne\npas la bonne\nlettre !", 1200)
                 hw.led_off()
+
+                # Proposition d'indice
+                hw.melody(C.SND_HINT)
+                if ui.confirm("INDICE", "Afficher l'indice\npour la lettre\n%s ?" % TARGET[letter_idx]):
+                    _show_hint(letter_idx)
+
+
+def _show_hint(letter_idx):
+    if letter_idx == 0:
+        ui.story_pages("INDICE 1/3", [
+            "Le mot secret est\nle suffixe de la\ntablette :\n\n  ESIEAtoy !",
+            "La premiere lettre\nest donc le 'T'.\n\nSon code dec : 84",
+            "Astuce binaire :\n84 = 64 + 16 + 4\nActive uniquement\nces 3 bits !",
+        ])
+    elif letter_idx == 1:
+        ui.story_pages("INDICE 2/3", [
+            "Le mot secret est\nle suffixe de la\ntablette :\n\n  ESIEAtoy !",
+            "La deuxieme\nlettre est le 'O'.\n\nSon code dec : 79",
+            "Astuce binaire :\n79 = 64 + 8\n   + 4 + 2 + 1\nActive ces bits !",
+        ])
+    elif letter_idx == 2:
+        ui.story_pages("INDICE 3/3", [
+            "Le mot secret est\nle suffixe de la\ntablette :\n\n  ESIEAtoy !",
+            "La derniere\nlettre est le 'Y'.\n\nSon code dec : 89",
+            "Astuce binaire :\n89 = 64 + 16\n   + 8 + 1\nActive ces bits !",
+        ])
