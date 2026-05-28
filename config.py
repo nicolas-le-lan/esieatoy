@@ -61,6 +61,7 @@ ATELIERS = [
     ("Le Morse",     "morse",    "morse",          "morse"),
     ("Code Cesar",   "key",      "cesar",          "cesar"),
     ("Le Simon",     "bolt",     "simon",          "simon"),
+    ("Code ASCII",   "esiea",    "ascii",          "ascii"),
     ("Le Cadenas",   "padlock",  "crochetage",     "crochetage"),
     ("Le Radar",     "signal",   "radio_dist",     "radio_dist"),
     ("Reglages",     "anchor",   "reglages",       None),

@@ -1,5 +1,5 @@
 # =============================================================================
-# apps/radio_dist.py — Atelier 4 : LE RADAR (synchronisation à distance)
+# apps/radio_dist.py — Atelier 6 : LE RADAR (synchronisation à distance)
 # =============================================================================
 # STORY : Dans le coffre se trouvait un étrange appareil.
 #         Deux tablettes se repoussent si trop proches, perdent le signal si
@@ -360,4 +360,4 @@ def run():
         "Sous le plancher\ndu navire, une\nmachine pulse\nau meme rythme !",
         "Message de fin :\nESIEA TOY\nTablette educative\nFrance 2026.",
     ])
-    ui.victory("RADAR OK", "Zone trouvee !", "Atelier 5/5")
+    ui.victory("RADAR OK", "Zone trouvee !", "Atelier 6/6")

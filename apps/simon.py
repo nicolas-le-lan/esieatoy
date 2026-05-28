@@ -154,8 +154,8 @@ def run():
     ui.story_pages("DEVERROUILLE !", [
         "CLAC ! Le verrou\nsymbionique cede.\nLes signaux se\nstabilisent.",
         "Un message s'affiche\ndesormais sur\nl'ecran principal :",
-        "SYSTEME DEVERROUILLE\nCoffre aux tresors\nlocalise !",
-        "Preparez-vous a\ncrocheter sa serrure\npour en savoir\nplus !",
+        "SYSTEME DEVERROUILLE\nFlux de donnees\nintercepte !",
+        "Preparez-vous a\ndecoder ce code\nASCII mysterieux\npour continuer !",
     ])
     hw.led_off()
-    ui.victory("SECURITE OK", "Systeme debloque !", "Atelier 3/5")
+    ui.victory("SECURITE OK", "Systeme debloque !", "Atelier 3/6")

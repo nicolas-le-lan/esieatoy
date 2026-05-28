@@ -112,7 +112,7 @@ def run():
                     "Mais cela n\nexplique pas leur\norigine !",
                 ])
                 hw.led_off()
-                ui.victory("RADIO OK", "Morse decode !", "Atelier 1/5")
+                ui.victory("RADIO OK", "Morse decode !", "Atelier 1/6")
                 return
             else:
                 hw.melody(C.SND_ERR)

@@ -63,6 +63,7 @@ REQUIRED = [
     "apps/morse.py",
     "apps/cesar.py",
     "apps/simon.py",
+    "apps/ascii.py",
     "apps/crochetage.py",
     "apps/radio_dist.py",
     "apps/reglages.py",
